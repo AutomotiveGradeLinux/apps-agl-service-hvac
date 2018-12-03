@@ -41,6 +41,7 @@
 #define CAN_DEV "vcan0"
 
 static afb_event_t event;
+static afb_event_t ev_update;
 
 /*****************************************************************************************/
 /*****************************************************************************************/
@@ -680,6 +681,7 @@ static void set(afb_req_t request)
 			}
 			afb_req_fail(request, "error", "CAN error");
 		}
+	    afb_event_broadcast(ev_update, query);
 	}
 	else {
 		afb_req_success(request, NULL, "No changes");
@@ -693,6 +695,7 @@ static int bindingServicePreInit(afb_api_t api)
 
 static int bindingServiceInit(afb_api_t api)
 {
+	ev_update = afb_daemon_make_event("update");
 	event = afb_daemon_make_event("language");
 	if(parse_config() != 0)
 		AFB_WARNING("Default values are being used!\n");
