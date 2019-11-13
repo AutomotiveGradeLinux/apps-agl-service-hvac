@@ -278,13 +278,13 @@ static int parse_config()
 	}
 
 	// Extract can device
-	json_object_object_get_ex(jobj, "can_device", &candevice); {
+	if (json_object_object_get_ex(jobj, "can_device", &candevice)) {
 		can_dev.name = json_object_get_string(candevice);
 	}
+	AFB_INFO("Using CAN device %s\n", can_dev.name);
 
 	// return 0 if all succeeded
 	return 0;
-
 }
 
 /* 
@@ -700,14 +700,16 @@ static void set(afb_req_t request)
 
 static int bindingServicePreInit(afb_api_t api)
 {
-	return open_can_dev();
+	if(parse_config() != 0)
+		AFB_WARNING("Default values are being used!\n");
+
+	open_can_dev();
 }
 
 static int bindingServiceInit(afb_api_t api)
 {
 	event = afb_daemon_make_event("language");
-	if(parse_config() != 0)
-		AFB_WARNING("Default values are being used!\n");
+
 	if(afb_daemon_require_api("identity", 1))
 		return -1;
 	return afb_api_call_sync(api, "identity", "subscribe", json_object_new_object(), NULL, NULL, NULL);
