@@ -703,7 +703,7 @@ static int bindingServicePreInit(afb_api_t api)
 	if(parse_config() != 0)
 		AFB_WARNING("Default values are being used!\n");
 
-	open_can_dev();
+	return open_can_dev();
 }
 
 static int bindingServiceInit(afb_api_t api)
