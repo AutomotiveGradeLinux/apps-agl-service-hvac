@@ -717,20 +717,18 @@ static int bindingServiceInit(afb_api_t api)
 
 static void onEvent(afb_api_t api, const char *event_name, struct json_object *object)
 {
-	json_object *language = json_object_new_object();
 	json_object *id_evt_name, *current_identity;
-
-	AFB_API_NOTICE(api, "Event '%s' received: %s", event_name,
-		json_object_to_json_string_ext(object, JSON_C_TO_STRING_PRETTY));
 
 	if (json_object_object_get_ex(object, "eventName", &id_evt_name) &&
 	  !strcmp(json_object_get_string(id_evt_name), "login") &&
 	  !afb_api_call_sync(api, "identity", "get", json_object_new_object(), &current_identity, NULL, NULL)) {
+		json_object *language = NULL;
 		json_object *response;
 		if (! json_object_object_get_ex(current_identity, "response", &response) || ! json_object_object_get_ex(response, "graphPreferredLanguage", &language)) {
 			language = json_object_new_string("en_US");
 		}
 		afb_event_broadcast(event, language);
+		return;
 	}
 }
 
