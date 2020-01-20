@@ -32,4 +32,4 @@ PROJECT_TARGET_ADD(afm-hvac-binding)
 	)
 
 	# Library dependencies (include updates automatically)
-	TARGET_LINK_LIBRARIES(${TARGET_NAME} ${link_libraries})
+	TARGET_LINK_LIBRARIES(${TARGET_NAME} ${link_libraries} m)
