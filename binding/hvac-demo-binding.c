@@ -1,9 +1,10 @@
 /*
  * Copyright (C) 2015, 2016 "IoT.bzh"
- * Copyright (C) 2016 Konsulko Group
+ * Copyright (C) 2016, 2020 Konsulko Group
  * Author "Romain Forlot"
  * Author "Jose Bolo"
  * Author "Scott Murray <scott.murray@konsulko.com>"
+ * Author "Matt Ranostay <matt.ranostay@konsulko.com>"
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +24,6 @@
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <net/if.h>
-#include <linux/can.h>
 #include <math.h>
 #include <json-c/json.h>
 
@@ -38,42 +34,7 @@
 #define GREEN "/sys/class/leds/blinkm-3-9-green/brightness"
 #define BLUE "/sys/class/leds/blinkm-3-9-blue/brightness"
 
-#define CAN_DEV "vcan0"
-
 static afb_event_t event;
-
-/*****************************************************************************************/
-/*****************************************************************************************/
-/**											**/
-/**											**/
-/**	   SECTION: UTILITY FUNCTIONS							**/
-/**											**/
-/**											**/
-/*****************************************************************************************/
-/*****************************************************************************************/
-
-/*
- * @brief Retry a function 3 times
- *
- * @param int function(): function that return an int wihtout any parameter
- *
- * @ return : 0 if ok, -1 if failed
- *
- */
-static int retry( int(*func)())
-{
-	int i;
-
-	for (i=0;i<4;i++)
-	{
-		if ( (*func)() >= 0)
-		{
-			return 0;
-		}
-		usleep(100000);
-	}
-	return -1;
-}
 
 /*****************************************************************************************/
 /*****************************************************************************************/
@@ -122,13 +83,6 @@ static struct {
 	{30, {201, 0, 5} }
 };
 
-struct can_handler {
-	int socket;
-	bool simulation;
-	char *send_msg;
-	struct sockaddr_can txAddress;
-};
-
 struct led_paths {
 	const char *red;
 	const char *green;
@@ -138,68 +92,6 @@ struct led_paths {
 	.green = GREEN,
 	.blue = BLUE
 };
-
-struct can_device {
-	const char *name;
-} can_dev = {
-	.name = CAN_DEV
-};
-
-static struct can_handler can_handler = { .socket = -1, .simulation = false, .send_msg = "SENDING CAN FRAME"};
-
-static int open_can_dev_helper()
-{
-	struct ifreq ifr;
-
-	AFB_DEBUG("CAN Handler socket : %d", can_handler.socket);
-	close(can_handler.socket);
-
-	can_handler.socket = socket(PF_CAN, SOCK_RAW, CAN_RAW);
-	if (can_handler.socket < 0)
-	{
-		AFB_ERROR("socket could not be created");
-	}
-	else
-	{
-		// Attempts to open a socket to CAN bus
-		strcpy(ifr.ifr_name, can_dev.name);
-		if(ioctl(can_handler.socket, SIOCGIFINDEX, &ifr) < 0)
-		{
-			AFB_ERROR("ioctl failed");
-		}
-		else
-		{
-			can_handler.txAddress.can_family = AF_CAN;
-			can_handler.txAddress.can_ifindex = ifr.ifr_ifindex;
-
-			// And bind it to txAddress
-			if (bind(can_handler.socket, (struct sockaddr *)&can_handler.txAddress, sizeof(can_handler.txAddress)) < 0)
-			{
-				AFB_ERROR("bind failed");
-			}
-			else {
-				return 0;
-			}
-		}
-		close(can_handler.socket);
-		can_handler.socket = -1;
-	}
-	return -1;
-}
-
-static int open_can_dev()
-{
-	int rc = retry(open_can_dev_helper);
-	if(rc < 0)
-	{
-		AFB_ERROR("Open of interface %s failed. Falling back to simulation mode", can_dev.name);
-		can_handler.socket = 0;
-		can_handler.simulation = true;
-		can_handler.send_msg = "FAKE CAN FRAME";
-		rc = 0;
-	}
-	return rc;
-}
 
 // Get original get temperature function from cpp hvacplugin code
 static uint8_t to_can_temp(uint8_t value)
@@ -251,7 +143,6 @@ static uint8_t read_fanspeed()
 static int parse_config()
 {
 	struct json_object *ledtemp = NULL;
-	struct json_object *candevice = NULL;
 	struct json_object *jobj = json_object_from_file("/etc/hvac.json");
 
 	// Check if .json file has been parsed as a json_object
@@ -277,13 +168,6 @@ static int parse_config()
 		}
 	}
 
-	// Extract can device
-	if (json_object_object_get_ex(jobj, "can_device", &candevice)) {
-		can_dev.name = json_object_get_string(candevice);
-	}
-	AFB_INFO("Using CAN device %s\n", can_dev.name);
-
-	// return 0 if all succeeded
 	return 0;
 }
 
@@ -400,13 +284,13 @@ static void temp_left_zone_led(afb_req_t request)
 		hvac_values[i].value = values[i]; // update structure at line 102
 		AFB_WARNING("WRITE_LED: value: %d", hvac_values[i].value);
 		rc = temp_write_led();
-		if (rc >= 0)
+		if (rc >= 0) {
 			afb_req_success(request, NULL, NULL);
-		else if (retry(temp_write_led)) {
-			/* restore initial values */
-			hvac_values[i].value = saves[i];
-			afb_req_fail(request, "error", "I2C error");
+			return;
 		}
+		/* restore initial values */
+		hvac_values[i].value = saves[i];
+		afb_req_fail(request, "error", "I2C error");
 	}
 }
 
@@ -471,59 +355,50 @@ static void temp_right_zone_led(afb_req_t request)
 	if (changed) {
 		hvac_values[i].value = values[i]; // update structure at line 102
 		AFB_WARNING("WRITE_LED: value: %d", hvac_values[i].value);
+
 		rc = temp_write_led();
-		if (rc >= 0)
+		if (rc >= 0) {
 			afb_req_success(request, NULL, NULL);
-		else if (retry(temp_write_led)) {
-			/* restore initial values */
-			hvac_values[i].value = saves[i];
-			afb_req_fail(request, "error", "I2C error");
+			return;
 		}
+
+		/* restore initial values */
+		hvac_values[i].value = saves[i];
+		afb_req_fail(request, "error", "I2C error");
 	}
 }
 
-static int write_can()
+static int write_can(afb_api_t api)
 {
-	struct can_frame txCanFrame;
-	int rc = 0;
+	json_object *jresp = json_object_new_object();
+	json_object *jobj = json_object_new_object();
+	json_object *jarray = json_object_new_array();
 
-	rc = can_handler.socket;
-	if (rc >= 0)
-	{
-		// Hardcoded can_id and dlc (data lenght code)
-		txCanFrame.can_id = 0x30;
-		txCanFrame.can_dlc = 8;
-		txCanFrame.data[0] = to_can_temp(read_temp_left_zone());
-		txCanFrame.data[1] = to_can_temp(read_temp_right_zone());
-		txCanFrame.data[2] = to_can_temp(read_temp());
-		txCanFrame.data[3] = 0xf0;
-		txCanFrame.data[4] = read_fanspeed();
-		txCanFrame.data[5] = 1;
-		txCanFrame.data[6] = 0;
-		txCanFrame.data[7] = 0;
+	json_object_object_add(jresp, "bus_name", json_object_new_string("ls"));
+	json_object_object_add(jresp, "frame", jobj);
 
-		AFB_DEBUG("%s: %d %d [%02x %02x %02x %02x %02x %02x %02x %02x]\n",
-			can_handler.send_msg,
-			txCanFrame.can_id, txCanFrame.can_dlc,
-			txCanFrame.data[0], txCanFrame.data[1], txCanFrame.data[2], txCanFrame.data[3],
-			txCanFrame.data[4], txCanFrame.data[5], txCanFrame.data[6], txCanFrame.data[7]);
+	json_object_object_add(jobj, "can_id", json_object_new_int(0x30));
+	json_object_object_add(jobj, "can_dlc", json_object_new_int(8));
 
-		if(!can_handler.simulation)
-		{
-			rc = (int)sendto(can_handler.socket, &txCanFrame, sizeof(struct can_frame), 0,
-				(struct sockaddr*)&can_handler.txAddress, sizeof(can_handler.txAddress));
-			if (rc < 0)
-			{
-				AFB_ERROR("Sending CAN frame failed.");
-			}
-		}
-	}
-	else
-	{
-		AFB_ERROR("socket not initialized. Attempt to reopen can device socket.");
-		open_can_dev();
-	}
-	return rc;
+
+	json_object_array_add(jarray,
+		json_object_new_int(to_can_temp(read_temp_left_zone())));
+
+	json_object_array_add(jarray,
+		json_object_new_int(to_can_temp(read_temp_right_zone())));
+
+	json_object_array_add(jarray,
+		json_object_new_int(to_can_temp(read_temp())));
+
+	json_object_array_add(jarray, json_object_new_int(0xf0));
+	json_object_array_add(jarray, json_object_new_int(read_fanspeed()));
+	json_object_array_add(jarray, json_object_new_int(1));
+	json_object_array_add(jarray, json_object_new_int(0));
+	json_object_array_add(jarray, json_object_new_int(0));
+
+	json_object_object_add(jobj, "can_data", jarray);
+
+	return afb_api_call_sync(api, "low-can", "write", jresp, NULL, NULL, NULL);
 }
 
 /*****************************************************************************************/
@@ -619,6 +494,7 @@ static void set(afb_req_t request)
 	struct json_object *query, *val;
 	uint8_t values[sizeof hvac_values / sizeof *hvac_values];
 	uint8_t saves[sizeof hvac_values / sizeof *hvac_values];
+	afb_api_t api = afb_req_get_api(request);
 
 	/* records initial values */
 	AFB_DEBUG("Records initial values");
@@ -680,18 +556,19 @@ static void set(afb_req_t request)
 			i--;
 			hvac_values[i].value = values[i];
 		}
-		rc = write_can();
-		if (rc >= 0)
+		rc = write_can(api);
+		if (rc >= 0) {
 			afb_req_success(request, NULL, NULL);
-		else if (retry(write_can)) {
-			/* restore initial values */
-			i = (int)(sizeof hvac_values / sizeof *hvac_values);
-			while (i) {
-				i--;
-				hvac_values[i].value = saves[i];
-			}
-			afb_req_fail(request, "error", "CAN error");
+			return;
 		}
+
+		/* restore initial values */
+		i = (int)(sizeof hvac_values / sizeof *hvac_values);
+		while (i) {
+			i--;
+			hvac_values[i].value = saves[i];
+		}
+		afb_req_fail(request, "error", "CAN error");
 	}
 	else {
 		afb_req_success(request, NULL, "No changes");
@@ -703,7 +580,7 @@ static int bindingServicePreInit(afb_api_t api)
 	if(parse_config() != 0)
 		AFB_WARNING("Default values are being used!\n");
 
-	return open_can_dev();
+	return 0;
 }
 
 static int bindingServiceInit(afb_api_t api)
@@ -712,6 +589,13 @@ static int bindingServiceInit(afb_api_t api)
 
 	if(afb_daemon_require_api("identity", 1))
 		return -1;
+
+	if(afb_daemon_require_api("low-can", 1))
+		return -1;
+
+	if (afb_api_call_sync(api, "low-can", "auth", NULL, NULL, NULL, NULL))
+		return -1;
+
 	return afb_api_call_sync(api, "identity", "subscribe", json_object_new_object(), NULL, NULL, NULL);
 }
 
