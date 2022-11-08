@@ -288,6 +288,12 @@ bool VisSession::parseData(const json &message, std::string &path, std::string &
 	} else if (dp["value"].is_number_float()) {
 		double num = dp["value"];
 		value = std::to_string(num);
+	} else if (dp["value"].is_number_unsigned()) {
+		unsigned int num = dp["value"];
+		value = std::to_string(num);
+	} else if (dp["value"].is_number_integer()) {
+		int num = dp["value"];
+		value = std::to_string(num);
 	} else if (dp["value"].is_boolean()) {
 		value = dp["value"] ? "true" : "false";
 	} else {
