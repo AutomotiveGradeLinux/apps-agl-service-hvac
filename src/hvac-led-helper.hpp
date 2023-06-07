@@ -3,6 +3,7 @@
 #ifndef _HVAC_LED_HELPER_HPP
 #define _HVAC_LED_HELPER_HPP
 
+#include <cstdint>
 #include <string>
 #include <iostream>
 #include <fstream>
