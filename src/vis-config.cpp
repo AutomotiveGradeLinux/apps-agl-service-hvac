@@ -15,6 +15,16 @@ namespace filesystem = boost::filesystem;
 #define DEFAULT_CLIENT_CERT_FILE "/etc/kuksa-val/Client.pem"
 #define DEFAULT_CA_CERT_FILE     "/etc/kuksa-val/CA.pem"
 
+inline
+void load_string_file(const filesystem::path& p, std::string& str)
+{
+	std::ifstream file;
+	file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+	file.open(p, std::ios_base::binary);
+	std::size_t sz = static_cast<std::size_t>(filesystem::file_size(p));
+	str.resize(sz, '\0');
+	file.read(&str[0], sz);
+}
 
 VisConfig::VisConfig(const std::string &hostname,
 		     const unsigned port,
@@ -93,7 +103,7 @@ VisConfig::VisConfig(const std::string &appname) :
 		std::cerr << "Invalid client key filename" << std::endl;
 		return;
 	}
-	filesystem::load_string_file(keyFileName, m_clientKey);
+	load_string_file(keyFileName, m_clientKey);
 	if (m_clientKey.empty()) {
 		std::cerr << "Invalid client key file" << std::endl;
 		return;
@@ -107,7 +117,7 @@ VisConfig::VisConfig(const std::string &appname) :
 		std::cerr << "Invalid client certificate filename" << std::endl;
 		return;
 	}
-	filesystem::load_string_file(certFileName, m_clientCert);
+	load_string_file(certFileName, m_clientCert);
 	if (m_clientCert.empty()) {
 		std::cerr << "Invalid client certificate file" << std::endl;
 		return;
@@ -121,7 +131,7 @@ VisConfig::VisConfig(const std::string &appname) :
 		std::cerr << "Invalid CA certificate filename" << std::endl;
 		return;
 	}
-	filesystem::load_string_file(caCertFileName, m_caCert);
+	load_string_file(caCertFileName, m_caCert);
 	if (m_caCert.empty()) {
 		std::cerr << "Invalid CA certificate file" << std::endl;
 		return;
@@ -135,7 +145,7 @@ VisConfig::VisConfig(const std::string &appname) :
 		std::cerr << "Invalid authorization token filename" << std::endl;
 		return;
 	}
-	filesystem::load_string_file(authTokenFileName, m_authToken);
+	load_string_file(authTokenFileName, m_authToken);
 	if (m_authToken.empty()) {
 		std::cerr << "Invalid authorization token file" << std::endl;
 		return;
