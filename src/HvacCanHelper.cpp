@@ -1,6 +1,10 @@
-// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2022,2023 Konsulko Group
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-#include "hvac-can-helper.hpp"
+#include "HvacCanHelper.h"
 #include <iostream>
 #include <iomanip>
 #include <sstream>

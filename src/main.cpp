@@ -1,34 +1,52 @@
-// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2022,2023 Konsulko Group
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-#include <iostream>
-#include <iomanip>
-#include <boost/asio/signal_set.hpp>
-#include <boost/bind.hpp>
-#include "hvac-service.hpp"
+#include <glib.h>
+#include <glib-unix.h>
+#include <systemd/sd-daemon.h>
 
-using work_guard_type = boost::asio::executor_work_guard<boost::asio::io_context::executor_type>;
+#include "HvacService.h"
+
+static gboolean quit_cb(gpointer user_data)
+{
+	GMainLoop *loop = (GMainLoop*) user_data;
+
+	g_info("Quitting...");
+
+	if (loop)
+		g_idle_add(G_SOURCE_FUNC(g_main_loop_quit), loop);
+	else
+		exit(0);
+
+	return G_SOURCE_REMOVE;
+}
 
 int main(int argc, char** argv)
 {
-	// The io_context is required for all I/O
-	net::io_context ioc;
+	GMainLoop *loop = NULL;
 
-	// Register to stop I/O context on SIGINT and SIGTERM
-	net::signal_set signals(ioc, SIGINT, SIGTERM);
-	signals.async_wait(boost::bind(&net::io_context::stop, &ioc));
+	loop = g_main_loop_new(NULL, FALSE);
+	if (!loop) {
+		std::cerr << "Could not create GLib event loop" << std::endl;
+		exit(1);
+	}
 
-	// The SSL context is required, and holds certificates
-	ssl::context ctx{ssl::context::tlsv12_client};
+	KuksaConfig config("agl-service-hvac");
 
-	// Launch the asynchronous operation
-	VisConfig config("agl-service-hvac");
-	std::make_shared<HvacService>(config, ioc, ctx)->run();
+	g_unix_signal_add(SIGTERM, quit_cb, (gpointer) loop);
+	g_unix_signal_add(SIGINT, quit_cb, (gpointer) loop);
 
-	// Ensure I/O context continues running even if there's no work
-	work_guard_type work_guard(ioc.get_executor());
+	HvacService service(config, loop);
 
-	// Run the I/O context
-	ioc.run();
+	sd_notify(0, "READY=1");
+
+	g_main_loop_run(loop);
+
+	// Clean up
+	g_main_loop_unref(loop);
 
 	return 0;
 }

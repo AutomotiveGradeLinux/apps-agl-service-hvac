@@ -1,18 +1,21 @@
-// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2022,2023 Konsulko Group
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-#include "vis-config.hpp"
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <exception>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/filesystem.hpp>
+#include "KuksaConfig.h"
 
 namespace property_tree = boost::property_tree;
 namespace filesystem = boost::filesystem;
 
-#define DEFAULT_CLIENT_KEY_FILE  "/etc/kuksa-val/Client.key"
-#define DEFAULT_CLIENT_CERT_FILE "/etc/kuksa-val/Client.pem"
 #define DEFAULT_CA_CERT_FILE     "/etc/kuksa-val/CA.pem"
 
 inline
@@ -21,32 +24,32 @@ void load_string_file(const filesystem::path& p, std::string& str)
 	std::ifstream file;
 	file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 	file.open(p, std::ios_base::binary);
-	std::size_t sz = static_cast<std::size_t>(filesystem::file_size(p));
-	str.resize(sz, '\0');
-	file.read(&str[0], sz);
+	if (file.good()) {
+		std::size_t sz = static_cast<std::size_t>(filesystem::file_size(p));
+		str.resize(sz, '\0');
+		file.read(&str[0], sz);
+	} else {
+		str.clear();
+	}
 }
 
-VisConfig::VisConfig(const std::string &hostname,
-		     const unsigned port,
-		     const std::string &clientKey,
-		     const std::string &clientCert,
-		     const std::string &caCert,
-		     const std::string &authToken,
-		     bool verifyPeer) :
+KuksaConfig::KuksaConfig(const std::string &hostname,
+			 const unsigned port,
+			 const std::string &caCert,
+			 const std::string &tlsServerName,
+			 const std::string &authToken) :
 	m_hostname(hostname),
 	m_port(port),
-	m_clientKey(clientKey),
-	m_clientCert(clientCert),
 	m_caCert(caCert),
+	m_tlsServerName(tlsServerName),
 	m_authToken(authToken),
-	m_verifyPeer(verifyPeer),
 	m_verbose(0),
 	m_valid(true)
 {
 	// Potentially could do some certificate validation here...
 }
 
-VisConfig::VisConfig(const std::string &appname) :
+KuksaConfig::KuksaConfig(const std::string &appname) :
 	m_valid(false)
 {
 	std::string config("/etc/xdg/AGL/");
@@ -70,7 +73,7 @@ VisConfig::VisConfig(const std::string &appname) :
 		return;
 	}
 	const property_tree::ptree &settings =
-		pt.get_child("vis-client", property_tree::ptree());
+		pt.get_child("kuksa-client", property_tree::ptree());
 
 	m_hostname = settings.get("server", "localhost");
 	std::stringstream ss;
@@ -81,45 +84,9 @@ VisConfig::VisConfig(const std::string &appname) :
 		return;
 	}
 
-	m_port = settings.get("port", 8090);
+	m_port = settings.get("port", 55555);
 	if (m_port == 0) {
 		std::cerr << "Invalid server port" << std::endl;
-		return;
-	}
-
-	// Default to disabling peer verification for now to be able
-        // to use the default upstream KUKSA.val certificates for
-	// testing.  Wrangling server and CA certificate generation
-	// and management to be able to verify will require further
-	// investigation.
-	m_verifyPeer = settings.get("verify-server", false);
-
-	std::string keyFileName = settings.get("key", DEFAULT_CLIENT_KEY_FILE);
-	std::stringstream().swap(ss);
-	ss << keyFileName;
-	ss >> std::quoted(keyFileName);
-	ss.str("");
-	if (keyFileName.empty()) {
-		std::cerr << "Invalid client key filename" << std::endl;
-		return;
-	}
-	load_string_file(keyFileName, m_clientKey);
-	if (m_clientKey.empty()) {
-		std::cerr << "Invalid client key file" << std::endl;
-		return;
-	}
-
-	std::string certFileName = settings.get("certificate", DEFAULT_CLIENT_CERT_FILE);
-	std::stringstream().swap(ss);
-	ss << certFileName;
-	ss >> std::quoted(certFileName);
-	if (certFileName.empty()) {
-		std::cerr << "Invalid client certificate filename" << std::endl;
-		return;
-	}
-	load_string_file(certFileName, m_clientCert);
-	if (m_clientCert.empty()) {
-		std::cerr << "Invalid client certificate file" << std::endl;
 		return;
 	}
 
@@ -131,11 +98,13 @@ VisConfig::VisConfig(const std::string &appname) :
 		std::cerr << "Invalid CA certificate filename" << std::endl;
 		return;
 	}
-	load_string_file(caCertFileName, m_caCert);
+	readFile(caCertFileName, m_caCert);
 	if (m_caCert.empty()) {
 		std::cerr << "Invalid CA certificate file" << std::endl;
 		return;
 	}
+
+	m_tlsServerName = settings.get("tls-server-name", "");
 
 	std::string authTokenFileName = settings.get("authorization", "");
 	std::stringstream().swap(ss);
@@ -145,7 +114,7 @@ VisConfig::VisConfig(const std::string &appname) :
 		std::cerr << "Invalid authorization token filename" << std::endl;
 		return;
 	}
-	load_string_file(authTokenFileName, m_authToken);
+	readFile(authTokenFileName, m_authToken);
 	if (m_authToken.empty()) {
 		std::cerr << "Invalid authorization token file" << std::endl;
 		return;
@@ -164,4 +133,15 @@ VisConfig::VisConfig(const std::string &appname) :
 	}
 
 	m_valid = true;
+}
+
+// Private
+
+void KuksaConfig::readFile(const std::string &filename, std::string &data)
+{
+	try {
+		load_string_file(filename, data);
+	} catch (const std::exception &e) {
+		data.clear();
+	}
 }

@@ -1,7 +1,11 @@
-// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2022,2023 Konsulko Group
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-#ifndef _HVAC_CAN_HELPER_HPP
-#define _HVAC_CAN_HELPER_HPP
+#ifndef _HVAC_CAN_HELPER_H
+#define _HVAC_CAN_HELPER_H
 
 #include <cstdint>
 #include <string>
@@ -51,4 +55,4 @@ private:
 	uint8_t m_fan_speed;
 };
 
-#endif // _HVAC_CAN_HELPER_HPP
+#endif // _HVAC_CAN_HELPER_H
