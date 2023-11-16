@@ -51,10 +51,10 @@ HvacService::HvacService(const KuksaConfig &config, GMainLoop *loop) :
 	if (m_broker) {
 		// Listen to actuator target updates
 		std::map<std::string, bool> signals;
-		signals["Vehicle.Cabin.HVAC.Station.Row1.Left.Temperature"] = true;
-		signals["Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed"] = true;
-		signals["Vehicle.Cabin.HVAC.Station.Row1.Right.Temperature"] = true;
-		signals["Vehicle.Cabin.HVAC.Station.Row1.Right.FanSpeed"] = true;
+		signals["Vehicle.Cabin.HVAC.Station.Row1.Driver.Temperature"] = true;
+		signals["Vehicle.Cabin.HVAC.Station.Row1.Driver.FanSpeed"] = true;
+		signals["Vehicle.Cabin.HVAC.Station.Row1.Passenger.Temperature"] = true;
+		signals["Vehicle.Cabin.HVAC.Station.Row1.Passenger.FanSpeed"] = true;
 		m_broker->subscribe(signals,
 				    [this](const std::string &path, const Datapoint &dp) {
 					    HandleSignalChange(path, dp);
@@ -77,25 +77,25 @@ void HvacService::HandleSignalChange(const std::string &path, const Datapoint &d
 	if (m_config.verbose() > 1)
 		std::cout << "HvacService::HandleSignalChange: Value received for " << path << std::endl;
 
-	if (path == "Vehicle.Cabin.HVAC.Station.Row1.Left.Temperature") {
+	if (path == "Vehicle.Cabin.HVAC.Station.Row1.Driver.Temperature") {
 		if (dp.has_int32()) {
 			int temp = dp.int32();
 			if (temp >= 0 && temp < 256)
 				set_left_temperature(temp);
 		}
-	} else if (path == "Vehicle.Cabin.HVAC.Station.Row1.Right.Temperature") {
+	} else if (path == "Vehicle.Cabin.HVAC.Station.Row1.Passenger.Temperature") {
 		if (dp.has_int32()) {
 			int temp = dp.int32();
 			if (temp >= 0 && temp < 256)
 				set_right_temperature(temp);
 		}
-	} else if (path == "Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed") {
+	} else if (path == "Vehicle.Cabin.HVAC.Station.Row1.Driver.FanSpeed") {
 		if (dp.has_uint32()) {
 			int speed = dp.uint32();
 			if (speed >= 0 && speed <= 100)
 				set_left_fan_speed(speed);
 		}
-	} else if (path == "Vehicle.Cabin.HVAC.Station.Row1.Right.FanSpeed") {
+	} else if (path == "Vehicle.Cabin.HVAC.Station.Row1.Passenger.FanSpeed") {
 		if (dp.has_uint32()) {
 			int speed = dp.uint32();
 			if (speed >= 0 && speed <= 100)
@@ -173,7 +173,7 @@ void HvacService::set_left_temperature(uint8_t temp)
 	m_led_helper.set_left_temperature(temp);
 
 	// Push out new value
-	m_broker->set("Vehicle.Cabin.HVAC.Station.Row1.Left.Temperature",
+	m_broker->set("Vehicle.Cabin.HVAC.Station.Row1.Driver.Temperature",
 		      (int) temp,
 		      [this](const std::string &path, const Error &error) {
 			      HandleSignalSetError(path, error);
@@ -186,7 +186,7 @@ void HvacService::set_right_temperature(uint8_t temp)
 	m_led_helper.set_right_temperature(temp);
 
 	// Push out new value
-	m_broker->set("Vehicle.Cabin.HVAC.Station.Row1.Right.Temperature",
+	m_broker->set("Vehicle.Cabin.HVAC.Station.Row1.Passenger.Temperature",
 		      (int) temp,
 		      [this](const std::string &path, const Error &error) {
 			      HandleSignalSetError(path, error);
@@ -198,7 +198,7 @@ void HvacService::set_left_fan_speed(uint8_t speed)
 	set_fan_speed(speed);
 
 	// Push out new value
-	m_broker->set("Vehicle.Cabin.HVAC.Station.Row1.Left.FanSpeed",
+	m_broker->set("Vehicle.Cabin.HVAC.Station.Row1.Driver.FanSpeed",
 		      speed,
 		      [this](const std::string &path, const Error &error) {
 			      HandleSignalSetError(path, error);
@@ -210,7 +210,7 @@ void HvacService::set_right_fan_speed(uint8_t speed)
 	set_fan_speed(speed);
 
 	// Push out new value
-	m_broker->set("Vehicle.Cabin.HVAC.Station.Row1.Right.FanSpeed",
+	m_broker->set("Vehicle.Cabin.HVAC.Station.Row1.Passenger.FanSpeed",
 		      speed,
 		      [this](const std::string &path, const Error &error) {
 			      HandleSignalSetError(path, error);
