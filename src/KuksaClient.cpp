@@ -73,6 +73,13 @@ void KuksaClient::set(const std::string &path, const std::string &value, SetResp
 	set(path, dp, cb, actuator);
 }
 
+void KuksaClient::set(const std::string &path, const bool value, SetResponseCallback cb, const bool actuator)
+{
+	Datapoint dp;
+	dp.set_bool_(value);
+	set(path, dp, cb, actuator);
+}
+
 void KuksaClient::set(const std::string &path, const int8_t value, SetResponseCallback cb, const bool actuator)
 {
 	Datapoint dp;

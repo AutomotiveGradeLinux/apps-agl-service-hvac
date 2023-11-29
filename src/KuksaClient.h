@@ -36,6 +36,7 @@ public:
 	void get(const std::string &path, GetResponseCallback cb, const bool actuator = false);
 
 	void set(const std::string &path, const std::string &value, SetResponseCallback cb, const bool actuator = false);
+	void set(const std::string &path, const bool value, SetResponseCallback cb, const bool actuator = false);
 	void set(const std::string &path, const int8_t value, SetResponseCallback cb, const bool actuator = false);
 	void set(const std::string &path, const int16_t value, SetResponseCallback cb, const bool actuator = false);
 	void set(const std::string &path, const int32_t value, SetResponseCallback cb, const bool actuator = false);

@@ -10,7 +10,6 @@
 #include <iostream>
 #include <algorithm>
 
-
 HvacService::HvacService(const KuksaConfig &config, GMainLoop *loop) :
 	m_loop(loop),
 	m_config(config),
@@ -55,6 +54,10 @@ HvacService::HvacService(const KuksaConfig &config, GMainLoop *loop) :
 		signals["Vehicle.Cabin.HVAC.Station.Row1.Driver.FanSpeed"] = true;
 		signals["Vehicle.Cabin.HVAC.Station.Row1.Passenger.Temperature"] = true;
 		signals["Vehicle.Cabin.HVAC.Station.Row1.Passenger.FanSpeed"] = true;
+		signals["Vehicle.Cabin.HVAC.IsAirConditioningActive"] = true;
+		signals["Vehicle.Cabin.HVAC.IsFrontDefrosterActive"] = true;
+		signals["Vehicle.Cabin.HVAC.IsRearDefrosterActive"] = true;
+		signals["Vehicle.Cabin.HVAC.IsRecirculationActive"] = true;
 		m_broker->subscribe(signals,
 				    [this](const std::string &path, const Datapoint &dp) {
 					    HandleSignalChange(path, dp);
@@ -100,6 +103,22 @@ void HvacService::HandleSignalChange(const std::string &path, const Datapoint &d
 			int speed = dp.uint32();
 			if (speed >= 0 && speed <= 100)
 				set_right_fan_speed(speed);
+		}
+	} else if (path == "Vehicle.Cabin.HVAC.IsAirConditioningActive") {
+		if (dp.has_bool_()) {
+			set_ac_active(dp.bool_());
+		}
+	} else if (path == "Vehicle.Cabin.HVAC.IsFrontDefrosterActive") {
+		if (dp.has_bool_()) {
+			set_front_defrost_active(dp.bool_());
+		}
+	} else if (path == "Vehicle.Cabin.HVAC.IsRearDefrosterActive") {
+		if (dp.has_bool_()) {
+			set_rear_defrost_active(dp.bool_());
+		}
+	} else if (path == "Vehicle.Cabin.HVAC.IsRecirculationActive") {
+		if (dp.has_bool_()) {
+			set_recirculation_active(dp.bool_());
 		}
 	}
 	// else ignore
@@ -221,3 +240,64 @@ void HvacService::set_fan_speed(uint8_t speed)
 {
 	m_can_helper.set_fan_speed(speed);
 }
+
+void HvacService::set_ac_active(bool active)
+{
+	const std::lock_guard<std::mutex> lock(m_hvac_state_mutex);
+	if (m_IsAirConditioningActive != active) {
+		m_IsAirConditioningActive = active;
+
+		// Push out new value
+		m_broker->set("Vehicle.Cabin.HVAC.IsAirConditioningActive",
+			      active,
+			      [this](const std::string &path, const Error &error) {
+				      HandleSignalSetError(path, error);
+			      });
+	}
+}
+
+void HvacService::set_front_defrost_active(bool active)
+{
+	const std::lock_guard<std::mutex> lock(m_hvac_state_mutex);
+	if (m_IsFrontDefrosterActive != active) {
+		m_IsFrontDefrosterActive = active;
+
+		// Push out new value
+		m_broker->set("Vehicle.Cabin.HVAC.IsFrontDefrosterActive",
+			      active,
+			      [this](const std::string &path, const Error &error) {
+				      HandleSignalSetError(path, error);
+			      });
+	}
+}
+
+void HvacService::set_rear_defrost_active(bool active)
+{
+	const std::lock_guard<std::mutex> lock(m_hvac_state_mutex);
+	if (m_IsRearDefrosterActive != active) {
+		m_IsRearDefrosterActive = active;
+
+		// Push out new value
+		m_broker->set("Vehicle.Cabin.HVAC.IsRearDefrosterActive",
+			      active,
+			      [this](const std::string &path, const Error &error) {
+				      HandleSignalSetError(path, error);
+			      });
+	}
+}
+
+void HvacService::set_recirculation_active(bool active)
+{
+	const std::lock_guard<std::mutex> lock(m_hvac_state_mutex);
+	if (m_IsRecirculationActive != active) {
+		m_IsRecirculationActive = active;
+
+		// Push out new value
+		m_broker->set("Vehicle.Cabin.HVAC.IsRecirculationActive",
+			      active,
+			      [this](const std::string &path, const Error &error) {
+				      HandleSignalSetError(path, error);
+			      });
+	}
+}
+

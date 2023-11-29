@@ -7,6 +7,7 @@
 #ifndef _HVAC_SERVICE_H
 #define _HVAC_SERVICE_H
 
+#include <mutex>
 #include <glib.h>
 
 #include "KuksaConfig.h"
@@ -43,6 +44,12 @@ private:
 	HvacCanHelper m_can_helper;
 	HvacLedHelper m_led_helper;
 
+	std::mutex m_hvac_state_mutex;
+	bool m_IsAirConditioningActive = false;
+	bool m_IsFrontDefrosterActive = false;
+	bool m_IsRearDefrosterActive = false;
+	bool m_IsRecirculationActive = false;
+
 	void HandleSignalChange(const std::string &path, const Datapoint &dp);
 
 	void HandleSignalSetError(const std::string &path, const Error &error);
@@ -60,6 +67,14 @@ private:
 	void set_right_fan_speed(uint8_t temp);
 
 	void set_fan_speed(uint8_t temp);
+
+	void set_ac_active(bool active);
+
+	void set_front_defrost_active(bool active);
+
+	void set_rear_defrost_active(bool active);
+
+	void set_recirculation_active(bool active);
 };
 
 #endif // _HVAC_SERVICE_H
