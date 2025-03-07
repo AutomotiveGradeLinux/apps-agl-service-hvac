@@ -16,8 +16,6 @@
 namespace property_tree = boost::property_tree;
 namespace filesystem = boost::filesystem;
 
-#define DEFAULT_CA_CERT_FILE     "/etc/kuksa-val/CA.pem"
-
 inline
 void load_string_file(const filesystem::path& p, std::string& str)
 {
@@ -35,11 +33,15 @@ void load_string_file(const filesystem::path& p, std::string& str)
 
 KuksaConfig::KuksaConfig(const std::string &hostname,
 			 const unsigned port,
+			 const bool useTls,
+			 const std::string &caCertFileName,
 			 const std::string &caCert,
 			 const std::string &tlsServerName,
 			 const std::string &authToken) :
 	m_hostname(hostname),
 	m_port(port),
+	m_useTls(useTls),
+	m_caCertFileName(caCertFileName),
 	m_caCert(caCert),
 	m_tlsServerName(tlsServerName),
 	m_authToken(authToken),
@@ -75,7 +77,7 @@ KuksaConfig::KuksaConfig(const std::string &appname) :
 	const property_tree::ptree &settings =
 		pt.get_child("kuksa-client", property_tree::ptree());
 
-	m_hostname = settings.get("server", "localhost");
+	m_hostname = settings.get("hostname", "localhost");
 	std::stringstream ss;
 	ss << m_hostname;
 	ss >> std::quoted(m_hostname);
@@ -90,18 +92,19 @@ KuksaConfig::KuksaConfig(const std::string &appname) :
 		return;
 	}
 
-	std::string caCertFileName = settings.get("ca-certificate", DEFAULT_CA_CERT_FILE);
+	m_useTls = settings.get("use-tls", false);
+
+	std::string caCertFileName = settings.get("ca-certificate", "");
 	std::stringstream().swap(ss);
 	ss << caCertFileName;
 	ss >> std::quoted(caCertFileName);
-	if (caCertFileName.empty()) {
-		std::cerr << "Invalid CA certificate filename" << std::endl;
-		return;
-	}
-	readFile(caCertFileName, m_caCert);
-	if (m_caCert.empty()) {
-		std::cerr << "Invalid CA certificate file" << std::endl;
-		return;
+	m_caCertFileName = caCertFileName;
+	if (!caCertFileName.empty()) {
+		readFile(caCertFileName, m_caCert);
+		if (m_caCert.empty()) {
+			std::cerr << "Invalid CA certificate file" << std::endl;
+			return;
+		}
 	}
 
 	m_tlsServerName = settings.get("tls-server-name", "");

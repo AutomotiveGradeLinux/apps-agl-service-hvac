@@ -24,17 +24,23 @@ HvacService::HvacService(const KuksaConfig &config, GMainLoop *loop) :
 	host += ss.str();
 
 	std::shared_ptr<grpc::Channel> channel;
-	if (!m_config.caCert().empty()) {
-		grpc::SslCredentialsOptions options;
-		options.pem_root_certs = m_config.caCert();
-		if (!m_config.tlsServerName().empty()) {
-			grpc::ChannelArguments args;
-			auto target = m_config.tlsServerName();
-			std::cout << "Overriding TLS target name with " << target << std::endl;
-			args.SetString(GRPC_SSL_TARGET_NAME_OVERRIDE_ARG, target);
-			channel = grpc::CreateCustomChannel(host, grpc::SslCredentials(options), args);
+	if (m_config.useTls()) {
+		std::cout << "Using TLS" << std::endl;
+		if (!m_config.caCert().empty()) {
+			std::cout << "Using CA certificate " << m_config.caCertFileName() << std::endl;
+			grpc::SslCredentialsOptions options;
+			options.pem_root_certs = m_config.caCert();
+			if (!m_config.tlsServerName().empty()) {
+				grpc::ChannelArguments args;
+				auto target = m_config.tlsServerName();
+				std::cout << "Overriding TLS server name with " << target << std::endl;
+				args.SetString(GRPC_SSL_TARGET_NAME_OVERRIDE_ARG, target);
+				channel = grpc::CreateCustomChannel(host, grpc::SslCredentials(options), args);
+			} else {
+				channel = grpc::CreateChannel(host, grpc::SslCredentials(options));
+			}
 		} else {
-			channel = grpc::CreateChannel(host, grpc::SslCredentials(options));
+			channel = grpc::CreateChannel(host, grpc::SslCredentials(grpc::SslCredentialsOptions()));
 		}
 	} else {
 		channel = grpc::CreateChannel(host, grpc::InsecureChannelCredentials());
