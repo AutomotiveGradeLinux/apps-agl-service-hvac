@@ -14,6 +14,8 @@ class KuksaConfig
 public:
         explicit KuksaConfig(const std::string &hostname,
 			     const unsigned port,
+			     const bool useTls,
+			     const std::string &caCertFileName,
 			     const std::string &caCert,
 			     const std::string &tlsServerName,
 			     const std::string &authToken);
@@ -22,6 +24,8 @@ public:
 
 	std::string hostname() { return m_hostname; };
 	unsigned port() { return m_port; };
+	bool useTls() { return m_useTls; };
+	std::string caCertFileName() { return m_caCertFileName; };
 	std::string caCert() { return m_caCert; };
 	std::string tlsServerName() { return m_tlsServerName; };
 	std::string authToken() { return m_authToken; };
@@ -31,6 +35,8 @@ public:
 private:
 	std::string m_hostname;
 	unsigned m_port;
+	bool m_useTls;
+	std::string m_caCertFileName;
 	std::string m_caCert;
 	std::string m_tlsServerName;
 	std::string m_authToken;
