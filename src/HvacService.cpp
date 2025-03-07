@@ -81,14 +81,14 @@ void HvacService::HandleSignalChange(const std::string &path, const Datapoint &d
 		std::cout << "HvacService::HandleSignalChange: Value received for " << path << std::endl;
 
 	if (path == "Vehicle.Cabin.HVAC.Station.Row1.Driver.Temperature") {
-		if (dp.has_int32()) {
-			int temp = dp.int32();
+		if (dp.has_float_()) {
+			int temp = (int) dp.float_();
 			if (temp >= 0 && temp < 256)
 				set_left_temperature(temp);
 		}
 	} else if (path == "Vehicle.Cabin.HVAC.Station.Row1.Passenger.Temperature") {
-		if (dp.has_int32()) {
-			int temp = dp.int32();
+		if (dp.has_float_()) {
+			int temp = (int) dp.float_();
 			if (temp >= 0 && temp < 256)
 				set_right_temperature(temp);
 		}
@@ -193,7 +193,7 @@ void HvacService::set_left_temperature(uint8_t temp)
 
 	// Push out new value
 	m_broker->set("Vehicle.Cabin.HVAC.Station.Row1.Driver.Temperature",
-		      (int) temp,
+		      (float) temp,
 		      [this](const std::string &path, const Error &error) {
 			      HandleSignalSetError(path, error);
 		      });
@@ -206,7 +206,7 @@ void HvacService::set_right_temperature(uint8_t temp)
 
 	// Push out new value
 	m_broker->set("Vehicle.Cabin.HVAC.Station.Row1.Passenger.Temperature",
-		      (int) temp,
+		      (float) temp,
 		      [this](const std::string &path, const Error &error) {
 			      HandleSignalSetError(path, error);
 		      });
