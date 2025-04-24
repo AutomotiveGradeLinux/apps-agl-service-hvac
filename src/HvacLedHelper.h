@@ -29,11 +29,11 @@ private:
 	std::string m_led_path_red;
 	std::string m_led_path_green;
 	std::string m_led_path_blue;
-	unsigned m_verbose;
-	bool m_config_valid;
+	unsigned m_verbose = 0;
+	bool m_config_valid = false;
 
-	uint8_t m_temp_left;
-	uint8_t m_temp_right;
+	uint8_t m_temp_left = 21;
+	uint8_t m_temp_right = 21;
 };
 
 #endif // _HVAC_LED_HELPER_H

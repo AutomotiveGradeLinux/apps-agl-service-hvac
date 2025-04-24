@@ -41,11 +41,7 @@ static struct {
 };
 
 
-HvacLedHelper::HvacLedHelper() :
-	m_temp_left(21),
-	m_temp_right(21),
-	m_config_valid(false),
-	m_verbose(0)
+HvacLedHelper::HvacLedHelper()
 {
 	read_config();
 }
@@ -63,9 +59,9 @@ void HvacLedHelper::read_config()
 	}
 
 	std::cout << "Using configuration " << config << std::endl;
-	property_tree::ptree pt;
+	property_tree::ptree settings;
 	try {
-		property_tree::ini_parser::read_ini(config, pt);
+		property_tree::ini_parser::read_ini(config, settings);
 	}
 	catch (std::exception &ex) {
 		// Continue with defaults if file missing/broken
@@ -73,10 +69,8 @@ void HvacLedHelper::read_config()
 		m_config_valid = true;
 		return;
 	}
-	const property_tree::ptree &settings =
-		pt.get_child("leds", property_tree::ptree());
 
-	m_led_path_red = settings.get("red", RED);
+	m_led_path_red = settings.get("leds.red", RED);
 	std::stringstream ss;
 	ss << m_led_path_red;
 	ss >> std::quoted(m_led_path_red);
@@ -87,7 +81,7 @@ void HvacLedHelper::read_config()
 	// stat file here?
 	std::cout << "Using red LED path " << m_led_path_red << std::endl;
 
-	m_led_path_green = settings.get("green", GREEN);
+	m_led_path_green = settings.get("leds.green", GREEN);
 	std::stringstream().swap(ss);
 	ss << m_led_path_green;
 	ss >> std::quoted(m_led_path_green);
@@ -98,7 +92,7 @@ void HvacLedHelper::read_config()
 	// stat file here?
 	std::cout << "Using green LED path " << m_led_path_red << std::endl;
 
-	m_led_path_blue = settings.get("blue", BLUE);
+	m_led_path_blue = settings.get("leds.blue", BLUE);
 	std::stringstream().swap(ss);
 	ss << m_led_path_blue;
 	ss >> std::quoted(m_led_path_blue);
@@ -110,7 +104,7 @@ void HvacLedHelper::read_config()
 	std::cout << "Using blue LED path " << m_led_path_red << std::endl;
 
 	m_verbose = 0;
-	std::string verbose = settings.get("verbose", "");
+	std::string verbose = settings.get("leds.verbose", "");
 	std::stringstream().swap(ss);
 	ss << verbose;
 	ss >> std::quoted(verbose);

@@ -66,18 +66,16 @@ KuksaConfig::KuksaConfig(const std::string &appname) :
 	}
 
 	std::cout << "Using configuration " << config << std::endl;
-	property_tree::ptree pt;
+	property_tree::ptree settings;
 	try {
-		property_tree::ini_parser::read_ini(config, pt);
+		property_tree::ini_parser::read_ini(config, settings);
 	}
 	catch (std::exception &ex) {
 		std::cerr << "Could not read " << config << std::endl;
 		return;
 	}
-	const property_tree::ptree &settings =
-		pt.get_child("kuksa-client", property_tree::ptree());
 
-	m_hostname = settings.get("hostname", "localhost");
+	m_hostname = settings.get("kuksa-client.hostname", "localhost");
 	std::stringstream ss;
 	ss << m_hostname;
 	ss >> std::quoted(m_hostname);
@@ -86,15 +84,15 @@ KuksaConfig::KuksaConfig(const std::string &appname) :
 		return;
 	}
 
-	m_port = settings.get("port", 55555);
+	m_port = settings.get("kuksa-client.port", 55555);
 	if (m_port == 0) {
 		std::cerr << "Invalid server port" << std::endl;
 		return;
 	}
 
-	m_useTls = settings.get("use-tls", false);
+	m_useTls = settings.get("kuksa-client.use-tls", false);
 
-	std::string caCertFileName = settings.get("ca-certificate", "");
+	std::string caCertFileName = settings.get("kuksa-client.ca-certificate", "");
 	std::stringstream().swap(ss);
 	ss << caCertFileName;
 	ss >> std::quoted(caCertFileName);
@@ -107,9 +105,9 @@ KuksaConfig::KuksaConfig(const std::string &appname) :
 		}
 	}
 
-	m_tlsServerName = settings.get("tls-server-name", "");
+	m_tlsServerName = settings.get("kuksa-client.tls-server-name", "");
 
-	std::string authTokenFileName = settings.get("authorization", "");
+	std::string authTokenFileName = settings.get("kuksa-client.authorization", "");
 	std::stringstream().swap(ss);
 	ss << authTokenFileName;
 	ss >> std::quoted(authTokenFileName);
@@ -124,7 +122,7 @@ KuksaConfig::KuksaConfig(const std::string &appname) :
 	}
 
 	m_verbose = 0;
-	std::string verbose = settings.get("verbose", "");
+	std::string verbose = settings.get("kuksa-client.verbose", "");
 	std::stringstream().swap(ss);
 	ss << verbose;
 	ss >> std::quoted(verbose);

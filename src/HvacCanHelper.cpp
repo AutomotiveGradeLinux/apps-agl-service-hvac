@@ -19,13 +19,7 @@
 namespace property_tree = boost::property_tree;
 
 HvacCanHelper::HvacCanHelper() :
-	m_temp_left(21),
-	m_temp_right(21),
-	m_fan_speed(0),
-	m_port("can0"),
-	m_config_valid(false),
-	m_active(false),
-	m_verbose(0)
+	m_port("can0")
 {
 	read_config();
 
@@ -50,9 +44,9 @@ void HvacCanHelper::read_config()
 	}
 
 	std::cout << "Using configuration " << config << std::endl;
-	property_tree::ptree pt;
+	property_tree::ptree settings;
 	try {
-		property_tree::ini_parser::read_ini(config, pt);
+		property_tree::ini_parser::read_ini(config, settings);
 	}
 	catch (std::exception &ex) {
 		// Continue with defaults if file missing/broken
@@ -60,10 +54,8 @@ void HvacCanHelper::read_config()
 		m_config_valid = true;
 		return;
 	}
-	const property_tree::ptree &settings =
-		pt.get_child("can", property_tree::ptree());
 
-	m_port = settings.get("port", "can0");
+	m_port = settings.get("can.port", "can0");
 	std::stringstream ss;
 	ss << m_port;
 	ss >> std::quoted(m_port);
@@ -73,7 +65,7 @@ void HvacCanHelper::read_config()
 	}
 
 	m_verbose = 0;
-	std::string verbose = settings.get("verbose", "");
+	std::string verbose = settings.get("can.verbose", "");
 	std::stringstream().swap(ss);
 	ss << verbose;
 	ss >> std::quoted(verbose);

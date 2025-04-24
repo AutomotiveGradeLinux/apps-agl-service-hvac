@@ -44,15 +44,15 @@ private:
 	void can_update();
 
 	std::string m_port;
-	unsigned m_verbose;
-	bool m_config_valid;
-	bool m_active;
+	unsigned m_verbose = 0;
+	bool m_config_valid = false;
+	bool m_active = false;
 	int m_can_socket;
 	struct sockaddr_can m_can_addr;
 
-	uint8_t m_temp_left;
-	uint8_t m_temp_right;
-	uint8_t m_fan_speed;
+	uint8_t m_temp_left = 21;
+	uint8_t m_temp_right = 21;
+	uint8_t m_fan_speed = 0;
 };
 
 #endif // _HVAC_CAN_HELPER_H
