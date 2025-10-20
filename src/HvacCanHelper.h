@@ -14,7 +14,7 @@
 class HvacCanHelper
 {
 public:
-	HvacCanHelper();
+	HvacCanHelper(bool verbose = false);
 
 	~HvacCanHelper();
 
@@ -43,7 +43,7 @@ private:
 
 	void can_update();
 
-	std::string m_port;
+	std::string m_port = "can0";
 	unsigned m_verbose = 0;
 	bool m_config_valid = false;
 	bool m_active = false;

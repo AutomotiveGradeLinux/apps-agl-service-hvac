@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022,2023 Konsulko Group
+ * Copyright (C) 2022,2023,2025 Konsulko Group
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,17 +9,14 @@
 
 #include <string>
 
+#define KUKSA_CONFIG_DEFAULT_HOSTNAME	"localhost"
+#define KUKSA_CONFIG_DEFAULT_PORT	55555
+#define KUKSA_CONFIG_DEFAULT_CA_CERT	"/etc/kuksa-val/CA.pem"
+
 class KuksaConfig
 {
 public:
-        explicit KuksaConfig(const std::string &hostname,
-			     const unsigned port,
-			     const bool useTls,
-			     const std::string &caCertFileName,
-			     const std::string &caCert,
-			     const std::string &tlsServerName,
-			     const std::string &authToken);
-        explicit KuksaConfig(const std::string &appname);
+	explicit KuksaConfig(const std::string &appname);
         ~KuksaConfig() {};
 
 	std::string hostname() { return m_hostname; };
@@ -29,20 +26,22 @@ public:
 	std::string caCert() { return m_caCert; };
 	std::string tlsServerName() { return m_tlsServerName; };
 	std::string authToken() { return m_authToken; };
-	bool valid() { return m_valid; };
 	unsigned verbose() { return m_verbose; };
+	bool valid() { return m_valid; };
 
 private:
-	std::string m_hostname;
-	unsigned m_port;
-	bool m_useTls;
-	std::string m_caCertFileName;
-	std::string m_caCert;
-	std::string m_tlsServerName;
-	std::string m_authToken;
-	unsigned m_verbose;
-	bool m_valid;
+	std::string m_hostname = KUKSA_CONFIG_DEFAULT_HOSTNAME;
+	unsigned m_port = KUKSA_CONFIG_DEFAULT_PORT;
+	bool m_useTls = false;
+	std::string m_caCertFileName = KUKSA_CONFIG_DEFAULT_CA_CERT;
+	std::string m_readCaCertFileName = "";
+	std::string m_caCert = "";
+	std::string m_tlsServerName = "";
+	std::string m_authToken = "";
+	unsigned m_verbose = 0;
+	bool m_valid = false;
 
+	void readConfig(const std::string &configFile, bool app = false);
 	void readFile(const std::string &filename, std::string &data);
 };
 

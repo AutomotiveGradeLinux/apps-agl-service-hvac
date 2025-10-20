@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022,2023 Konsulko Group
+ * Copyright (C) 2022,2023,2025 Konsulko Group
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,18 +8,14 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <toml.hpp>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-#include <boost/property_tree/ini_parser.hpp>
 
-namespace property_tree = boost::property_tree;
-
-HvacCanHelper::HvacCanHelper() :
-	m_port("can0")
+HvacCanHelper::HvacCanHelper(bool verbose) :
+	m_verbose(verbose)
 {
 	read_config();
 
@@ -36,44 +32,45 @@ void HvacCanHelper::read_config()
 	// Using a separate configuration file now, it may make sense
 	// to revisit this if a workable scheme to handle overriding
 	// values for the full demo setup can be come up with.
-	std::string config("/etc/xdg/AGL/agl-service-hvac-can.conf");
+	std::string configFile = "";
 	char *home = getenv("XDG_CONFIG_HOME");
 	if (home) {
-		config = home;
-		config += "/AGL/agl-service-hvac.conf";
-	}
+		configFile = home;
+		configFile += "/AGL/agl-service-hvac/can.toml";
 
-	std::cout << "Using configuration " << config << std::endl;
-	property_tree::ptree settings;
-	try {
-		property_tree::ini_parser::read_ini(config, settings);
+		if (!std::filesystem::exists(std::filesystem::status(configFile)))
+			configFile.clear();
 	}
-	catch (std::exception &ex) {
+	if (configFile.empty())
+		configFile = "/etc/xdg/AGL/agl-service-hvac/can.toml";
+	std::cout << "Reading configuration " << configFile << std::endl;
+	toml::value config;
+	try {
+		config = toml::parse(configFile);
+	} catch(const toml::syntax_error& err) {
+		std::cerr << "Syntax error in " << configFile << std::endl;
+
+		// Report all the errors
+		std::cerr << err.what() << std::endl;
+
 		// Continue with defaults if file missing/broken
-		std::cerr << "Could not read " << config << std::endl;
+		m_config_valid = true;
+		return;
+	} catch(const std::exception& ex) {
+		std::cerr << "Could not read " << configFile << std::endl;
+
+		// Continue with defaults if file missing/broken
 		m_config_valid = true;
 		return;
 	}
 
-	m_port = settings.get("can.port", "can0");
+	m_port = toml::find_or(config, "port", "can0");
 	std::stringstream ss;
 	ss << m_port;
 	ss >> std::quoted(m_port);
 	if (m_port.empty()) {
 		std::cerr << "Invalid CAN port path" << std::endl;
 		return;
-	}
-
-	m_verbose = 0;
-	std::string verbose = settings.get("can.verbose", "");
-	std::stringstream().swap(ss);
-	ss << verbose;
-	ss >> std::quoted(verbose);
-	if (!verbose.empty()) {
-		if (verbose == "true" || verbose == "1")
-			m_verbose = 1;
-		if (verbose == "2")
-			m_verbose = 2;
 	}
 
 	m_config_valid = true;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022,2023 Konsulko Group
+ * Copyright (C) 2022,2023,2025 Konsulko Group
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,140 +8,161 @@
 #include <iomanip>
 #include <sstream>
 #include <exception>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-#include <boost/filesystem.hpp>
+#include <filesystem>
+#include <toml.hpp>
 #include "KuksaConfig.h"
 
-namespace property_tree = boost::property_tree;
-namespace filesystem = boost::filesystem;
-
-inline
-void load_string_file(const filesystem::path& p, std::string& str)
+KuksaConfig::KuksaConfig(const std::string &appname)
 {
-	std::ifstream file;
-	file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-	file.open(p, std::ios_base::binary);
-	if (file.good()) {
-		std::size_t sz = static_cast<std::size_t>(filesystem::file_size(p));
-		str.resize(sz, '\0');
-		file.read(&str[0], sz);
-	} else {
-		str.clear();
-	}
-}
-
-KuksaConfig::KuksaConfig(const std::string &hostname,
-			 const unsigned port,
-			 const bool useTls,
-			 const std::string &caCertFileName,
-			 const std::string &caCert,
-			 const std::string &tlsServerName,
-			 const std::string &authToken) :
-	m_hostname(hostname),
-	m_port(port),
-	m_useTls(useTls),
-	m_caCertFileName(caCertFileName),
-	m_caCert(caCert),
-	m_tlsServerName(tlsServerName),
-	m_authToken(authToken),
-	m_verbose(0),
-	m_valid(true)
-{
-	// Potentially could do some certificate validation here...
-}
-
-KuksaConfig::KuksaConfig(const std::string &appname) :
-	m_valid(false)
-{
-	std::string config("/etc/xdg/AGL/");
-	config += appname;
-	config += ".conf";
+	// Read global configuration, allowing for override under XDG_CONFIG_HOME
+	std::string configFile = "";
 	char *home = getenv("XDG_CONFIG_HOME");
 	if (home) {
-		config = home;
-		config += "/AGL/";
-		config += appname;
-		config += ".conf";
-	}
+		configFile = home;
+		configFile += "/AGL/kuksa.toml";
 
-	std::cout << "Using configuration " << config << std::endl;
-	property_tree::ptree settings;
+		if (!std::filesystem::exists(std::filesystem::status(configFile)))
+			configFile.clear();
+	}
+	if (configFile.empty())
+		configFile = "/etc/xdg/AGL/kuksa.toml";
+	readConfig(configFile);
+	if (!m_valid)
+		return;
+
+	// Read application configuration, again allowing for override under XDG_CONFIG_HOME
+	configFile = "";
+	if (home) {
+		configFile = home;
+		configFile += "/AGL/";
+		configFile += appname;
+		configFile += "/kuksa.toml";
+
+		if (!std::filesystem::exists(std::filesystem::status(configFile)))
+			configFile.clear();
+	}
+	if (configFile.empty()) {
+		configFile = "/etc/xdg/AGL/";
+		configFile += appname;
+		configFile += "/kuksa.toml";
+		
+	}
+	readConfig(configFile, true);
+}
+
+// Private
+
+void KuksaConfig::readConfig(const std::string &configFile, bool app)
+{
+	m_valid = false;
+
+	toml::value config;
+	std::cout << "Reading KUKSA.val configuration " << configFile << std::endl;
 	try {
-		property_tree::ini_parser::read_ini(config, settings);
-	}
-	catch (std::exception &ex) {
-		std::cerr << "Could not read " << config << std::endl;
+		config = toml::parse(configFile);
+	} catch(const toml::syntax_error& err) {
+		std::cerr << "Syntax error in " << configFile << std::endl;
+
+		// Report all the errors
+		std::cerr << err.what() << std::endl;
+		return;
+	} catch(const std::exception& ex) {
+		std::cerr << "Could not read " << configFile << std::endl;
 		return;
 	}
 
-	m_hostname = settings.get("kuksa-client.hostname", "localhost");
-	std::stringstream ss;
-	ss << m_hostname;
-	ss >> std::quoted(m_hostname);
-	if (m_hostname.empty()) {
-		std::cerr << "Invalid server hostname" << std::endl;
-		return;
+	if (config.contains("hostname")) {
+		std::string hostname = toml::get_or(config.at("hostname"), "");
+		if (hostname.empty()) {
+			std::cerr << "Invalid server hostname" << std::endl;
+			return;
+		}
+		m_hostname = hostname;
 	}
 
-	m_port = settings.get("kuksa-client.port", 55555);
-	if (m_port == 0) {
-		std::cerr << "Invalid server port" << std::endl;
-		return;
+	if (config.contains("port")) {
+		unsigned port = toml::get_or(config.at("port"), 0);
+		if (port == 0) {
+			std::cerr << "Invalid server port" << std::endl;
+			return;
+		}
+		m_port = port;
 	}
 
-	m_useTls = settings.get("kuksa-client.use-tls", false);
+	if (config.contains("use-tls") && config.at("use-tls").is_boolean()) {
+		m_useTls = toml::get_or(config.at("use-tls"), m_useTls);
+	}
 
-	std::string caCertFileName = settings.get("kuksa-client.ca-certificate", "");
-	std::stringstream().swap(ss);
-	ss << caCertFileName;
-	ss >> std::quoted(caCertFileName);
-	m_caCertFileName = caCertFileName;
-	if (!caCertFileName.empty()) {
-		readFile(caCertFileName, m_caCert);
-		if (m_caCert.empty()) {
-			std::cerr << "Invalid CA certificate file" << std::endl;
+	if (config.contains("ca-certificate")) {
+		std::string caCertFileName = toml::get_or(config.at("ca-certificate"), "");
+		if (!caCertFileName.empty()) {
+			m_caCertFileName = caCertFileName;
+		} else {
+			std::cerr << "Invalid CA certificate filename: " << caCertFileName << std::endl;
 			return;
 		}
 	}
-
-	m_tlsServerName = settings.get("kuksa-client.tls-server-name", "");
-
-	std::string authTokenFileName = settings.get("kuksa-client.authorization", "");
-	std::stringstream().swap(ss);
-	ss << authTokenFileName;
-	ss >> std::quoted(authTokenFileName);
-	if (authTokenFileName.empty()) {
-		std::cerr << "Invalid authorization token filename" << std::endl;
-		return;
-	}
-	readFile(authTokenFileName, m_authToken);
-	if (m_authToken.empty()) {
-		std::cerr << "Invalid authorization token file" << std::endl;
-		return;
+	if (!m_caCertFileName.empty()) {
+		if (m_readCaCertFileName != m_caCertFileName) {
+			readFile(m_caCertFileName, m_caCert);
+			if (m_caCert.empty()) {
+				std::cerr << "Invalid CA certificate file: " << m_caCertFileName << std::endl;
+				return;
+			}
+			m_readCaCertFileName = m_caCertFileName;
+		}
 	}
 
-	m_verbose = 0;
-	std::string verbose = settings.get("kuksa-client.verbose", "");
-	std::stringstream().swap(ss);
-	ss << verbose;
-	ss >> std::quoted(verbose);
-	if (!verbose.empty()) {
-		if (verbose == "true" || verbose == "1")
-			m_verbose = 1;
-		if (verbose == "2")
-			m_verbose = 2;
+	if (config.contains("tls-server-name")) {
+		m_tlsServerName = toml::get_or(config.at("tls-server-name"), "");
+	}
+
+	if (config.contains("authorization")) {
+		std::string auth = toml::get_or(config.at("authorization"), "");
+		if (!auth.empty()) {
+			if (auth.front() == '/') {
+				readFile(auth, m_authToken);
+				if (m_authToken.empty()) {
+					std::cerr << "Invalid authorization token file: " << auth << std::endl;
+					return;
+				}
+			} else {
+				// Assume token text has been given
+				m_authToken = auth;
+			}
+		}
+	}
+
+	// Verbosity option is application-specific
+	if (app) {
+		if (config.contains("verbose")) {
+			std::string verbose = toml::get_or(config.at("verbose"), "invalid");
+			if (!verbose.empty() && verbose != "invalid") {
+				if (verbose == "true" || verbose == "1")
+					m_verbose = 1;
+				if (verbose == "2")
+					m_verbose = 2;
+			}
+		}
 	}
 
 	m_valid = true;
 }
 
-// Private
-
 void KuksaConfig::readFile(const std::string &filename, std::string &data)
 {
 	try {
-		load_string_file(filename, data);
+		std::ifstream file;
+		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+		const std::filesystem::path p(filename);
+		file.open(p, std::ios_base::binary);
+		if (file.good()) {
+			std::size_t sz = static_cast<std::size_t>(std::filesystem::file_size(p));
+			data.resize(sz, '\0');
+			file.read(&data[0], sz);
+		} else {
+			data.clear();
+		}
 	} catch (const std::exception &e) {
 		data.clear();
 	}

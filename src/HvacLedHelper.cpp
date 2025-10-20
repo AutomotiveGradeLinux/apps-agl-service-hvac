@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022,2023 Konsulko Group
+ * Copyright (C) 2022,2023,2025 Konsulko Group
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,10 +8,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-
-namespace property_tree = boost::property_tree;
+#include <toml.hpp>
 
 #define RED "/sys/class/leds/blinkm-3-9-red/brightness"
 #define GREEN "/sys/class/leds/blinkm-3-9-green/brightness"
@@ -51,26 +48,39 @@ void HvacLedHelper::read_config()
 	// Using a separate configuration file now, it may make sense
 	// to revisit this if a workable scheme to handle overriding
 	// values for the full demo setup can be come up with.
-	std::string config("/etc/xdg/AGL/agl-service-hvac-leds.conf");
+	std::string configFile = "";
 	char *home = getenv("XDG_CONFIG_HOME");
 	if (home) {
-		config = home;
-		config += "/AGL/agl-service-hvac.conf";
-	}
+		configFile = home;
+		configFile += "/AGL/agl-service-hvac/leds.toml";
 
-	std::cout << "Using configuration " << config << std::endl;
-	property_tree::ptree settings;
-	try {
-		property_tree::ini_parser::read_ini(config, settings);
+		if (!std::filesystem::exists(std::filesystem::status(configFile)))
+			configFile.clear();
 	}
-	catch (std::exception &ex) {
+	if (configFile.empty())
+		configFile = "/etc/xdg/AGL/agl-service-hvac/leds.toml";
+	std::cout << "Reading configuration " << configFile << std::endl;
+	toml::value config;
+	try {
+		config = toml::parse(configFile);
+	} catch(const toml::syntax_error& err) {
+		std::cerr << "Syntax error in " << configFile << std::endl;
+
+		// Report all the errors
+		std::cerr << err.what() << std::endl;
+
 		// Continue with defaults if file missing/broken
-		std::cerr << "Could not read " << config << std::endl;
+		m_config_valid = true;
+		return;
+	} catch(const std::exception& ex) {
+		std::cerr << "Could not read " << configFile << std::endl;
+
+		// Continue with defaults if file missing/broken
 		m_config_valid = true;
 		return;
 	}
 
-	m_led_path_red = settings.get("leds.red", RED);
+	m_led_path_red = toml::find_or(config, "red", RED);
 	std::stringstream ss;
 	ss << m_led_path_red;
 	ss >> std::quoted(m_led_path_red);
@@ -81,7 +91,7 @@ void HvacLedHelper::read_config()
 	// stat file here?
 	std::cout << "Using red LED path " << m_led_path_red << std::endl;
 
-	m_led_path_green = settings.get("leds.green", GREEN);
+	m_led_path_green = toml::find_or(config, "green", GREEN);
 	std::stringstream().swap(ss);
 	ss << m_led_path_green;
 	ss >> std::quoted(m_led_path_green);
@@ -92,7 +102,7 @@ void HvacLedHelper::read_config()
 	// stat file here?
 	std::cout << "Using green LED path " << m_led_path_red << std::endl;
 
-	m_led_path_blue = settings.get("leds.blue", BLUE);
+	m_led_path_blue = toml::find_or(config, "blue", BLUE);
 	std::stringstream().swap(ss);
 	ss << m_led_path_blue;
 	ss >> std::quoted(m_led_path_blue);
@@ -102,18 +112,6 @@ void HvacLedHelper::read_config()
 	}
 	// stat file here?
 	std::cout << "Using blue LED path " << m_led_path_red << std::endl;
-
-	m_verbose = 0;
-	std::string verbose = settings.get("leds.verbose", "");
-	std::stringstream().swap(ss);
-	ss << verbose;
-	ss >> std::quoted(verbose);
-	if (!verbose.empty()) {
-		if (verbose == "true" || verbose == "1")
-			m_verbose = 1;
-		if (verbose == "2")
-			m_verbose = 2;
-	}
 
 	m_config_valid = true;
 }

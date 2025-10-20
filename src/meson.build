@@ -1,12 +1,7 @@
-boost_dep = dependency('boost',
-                       version : '>=1.72',
-                       modules : [ 'thread', 'filesystem', 'program_options', 'log' ])
-
 cpp = meson.get_compiler('cpp')
 grpcpp_reflection_dep = cpp.find_library('grpc++_reflection')
 
 service_dep = [
-    boost_dep,
     dependency('glib-2.0'),
     dependency('openssl'),
     dependency('threads'),

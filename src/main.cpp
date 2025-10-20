@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022,2023 Konsulko Group
+ * Copyright (C) 2022,2023,2025 Konsulko Group
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -26,15 +26,17 @@ static gboolean quit_cb(gpointer user_data)
 
 int main(int argc, char** argv)
 {
-	GMainLoop *loop = NULL;
+	KuksaConfig config("agl-service-hvac");
+	if (!config.valid()) {
+		std::cerr << "Invalid configuration, exiting" << std::endl;
+		exit(1);
+	}
 
-	loop = g_main_loop_new(NULL, FALSE);
+	GMainLoop *loop = g_main_loop_new(NULL, FALSE);
 	if (!loop) {
 		std::cerr << "Could not create GLib event loop" << std::endl;
 		exit(1);
 	}
-
-	KuksaConfig config("agl-service-hvac");
 
 	g_unix_signal_add(SIGTERM, quit_cb, (gpointer) loop);
 	g_unix_signal_add(SIGINT, quit_cb, (gpointer) loop);
